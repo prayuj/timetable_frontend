@@ -41,6 +41,11 @@
   margin: 5%;
 }
 
+.selected {
+  background-color: #ff2e63 !important;
+  color: white;
+}
+
 .App-logo {
   height: 40vmin;
   pointer-events: none;
@@ -76,6 +81,11 @@ td {
 .col-3 {
   margin: auto;
 }
+
+.day_row > td {
+  padding-top: 3%;
+}
+
 /* 
 td {
   float: left;

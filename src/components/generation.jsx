@@ -22,7 +22,7 @@ class Generation extends Component {
     let chart_data = this.state.chart_data.slice(1);
     let iterationWithMaximum = 0;
     let maximumFitness = 0;
-    for (let i = 0; i <= this.state.data.iterations; i++) {
+    for (let i = 0; i < this.state.generation; i++) {
       console.log(i);
       if (maximumFitness <= chart_data[i][1]) {
         iterationWithMaximum = i;
@@ -34,27 +34,30 @@ class Generation extends Component {
     }
     if (iterationWithMaximum === 0) {
       iterationWithMaximum = "Intial Population";
-    } else if (iterationWithMaximum === 1) {
-      iterationWithMaximum = "First Generation";
-    } else if (iterationWithMaximum === 2) {
-      iterationWithMaximum = "Two Generation";
-    } else if (iterationWithMaximum === 3) {
-      iterationWithMaximum = "Three Generation";
-    } else if (iterationWithMaximum === 4) {
-      iterationWithMaximum = "Four Generation";
-    } else if (iterationWithMaximum === 5) {
-      iterationWithMaximum = "Fifth Generation";
-    } else if (iterationWithMaximum === 6) {
-      iterationWithMaximum = "Sixth Generation";
-    } else if (iterationWithMaximum === 7) {
-      iterationWithMaximum = "Seventh Generation";
-    } else if (iterationWithMaximum === 8) {
-      iterationWithMaximum = "Eighth Generation";
-    } else if (iterationWithMaximum === 9) {
-      iterationWithMaximum = "Ninth Generation";
-    } else if (iterationWithMaximum === 10) {
-      iterationWithMaximum = "Tenth Generation";
+    } else {
+      iterationWithMaximum = "Generation " + iterationWithMaximum;
     }
+    //  else if (iterationWithMaximum === 1) {
+    //   iterationWithMaximum = "First Generation";
+    // } else if (iterationWithMaximum === 2) {
+    //   iterationWithMaximum = "Second Generation";
+    // } else if (iterationWithMaximum === 3) {
+    //   iterationWithMaximum = "Three Generation";
+    // } else if (iterationWithMaximum === 4) {
+    //   iterationWithMaximum = "Four Generation";
+    // } else if (iterationWithMaximum === 5) {
+    //   iterationWithMaximum = "Fifth Generation";
+    // } else if (iterationWithMaximum === 6) {
+    //   iterationWithMaximum = "Sixth Generation";
+    // } else if (iterationWithMaximum === 7) {
+    //   iterationWithMaximum = "Seventh Generation";
+    // } else if (iterationWithMaximum === 8) {
+    //   iterationWithMaximum = "Eighth Generation";
+    // } else if (iterationWithMaximum === 9) {
+    //   iterationWithMaximum = "Ninth Generation";
+    // } else if (iterationWithMaximum === 10) {
+    //   iterationWithMaximum = "Tenth Generation";
+    // }
     this.setState({
       iterationWithMaximum,
       maximumFitness,
@@ -226,14 +229,16 @@ class Generation extends Component {
                 Resume
               </Button>
             ) : (
-              <Button
-                variant="danger"
-                onClick={() => {
-                  this.setState({ stop: true });
-                }}
-              >
-                STOP
-              </Button>
+              <>
+                <Button
+                  variant="danger"
+                  onClick={() => {
+                    this.setState({ stop: true });
+                  }}
+                >
+                  STOP
+                </Button>
+              </>
             )}
           </div>
         );
@@ -303,6 +308,24 @@ class Generation extends Component {
               />
             </Col>
           </Row>
+          <Button
+            style={{
+              position: "fixed",
+              top: "10%",
+              left: "1%",
+            }}
+            id="main"
+            onClick={this.props.backButton}
+          >
+            <span
+              class="material-icons"
+              id="main"
+              style={{ verticalAlign: "bottom" }}
+              onClick={this.props.backButton}
+            >
+              arrow_back
+            </span>
+          </Button>
         </div>
       </div>
     );

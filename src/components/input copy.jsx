@@ -30,10 +30,10 @@ class Input extends Component {
 
   onDaysHandler(event) {
     if (event.target.id == "add") {
-      let temp_days = this.state.days;
+      let temp_days = JSON.parse(JSON.stringify(this.state.days));
       temp_days[temp_days.length] = "";
       // Update Lecturer Availability
-      let temp_lecturers = this.state.lecturers;
+      let temp_lecturers = JSON.parse(JSON.stringify(this.state.lecturers));
       let new_row = [];
       for (let j = 0; j < this.state.hours.length; j++) {
         new_row.push(true);
@@ -48,13 +48,13 @@ class Input extends Component {
         lecturers: temp_lecturers,
       });
     } else if (event.target.className.includes("day")) {
-      let temp_days = this.state.days;
+      let temp_days = [...this.state.days];
       temp_days[parseInt(event.target.id)] = event.target.value;
       this.setState({
-        day: temp_days,
+        days: temp_days,
       });
     } else if (event.target.id == "del") {
-      let temp_lecturers = this.state.lecturers;
+      let temp_lecturers = JSON.parse(JSON.stringify(this.state.lecturers));
       for (let i = 0; i < temp_lecturers.length; i++) {
         temp_lecturers[i]["availability"] = temp_lecturers[i][
           "availability"
@@ -392,6 +392,25 @@ class Input extends Component {
     return (
       <div>
         {/* <Button style={{ margin: "5%" }}>Save</Button> */}
+        <Button
+          style={{
+            position: "fixed",
+            top: "10%",
+            left: "1%",
+          }}
+          id="main"
+          onClick={this.props.backButton}
+        >
+          <span
+            class="material-icons"
+            id="main"
+            style={{ verticalAlign: "bottom" }}
+            onClick={this.props.backButton}
+          >
+            arrow_back
+          </span>
+        </Button>
+
         <Tabs
           defaultActiveKey="days"
           id="uncontrolled-tab-example"
@@ -1170,7 +1189,6 @@ class Input extends Component {
               </Row>
             </Jumbotron>
           </Tab>
-
           <Tab eventKey="save" title="Save">
             <Jumbotron
               style={{

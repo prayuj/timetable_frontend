@@ -34,12 +34,12 @@ class Dashboard extends Component {
         <Card className="newtimetablecard">
           <Card.Body>
             <Card.Title>New Timetable</Card.Title>
-            <Card.Text>Start Generating a New Timetable.</Card.Text>
-            <Button variant="success">
-              <Link to="/newtimetable" style={{ color: "white" }}>
-                Let's Go!
-              </Link>
-            </Button>
+            <Card.Text style={{ height: "72px" }}>
+              Start Generating a New Timetable.
+            </Card.Text>
+            <Link to="/newtimetable">
+              <Button variant="success">Let's Go!</Button>
+            </Link>
           </Card.Body>
         </Card>
       </Col>,
@@ -59,20 +59,17 @@ class Dashboard extends Component {
               >
                 {timetables[i].desc}
               </Card.Text>
-              <Button
-                variant="primary"
-                style={{
-                  backgroundColor: "#00adb5",
-                  borderColor: "#00adb5",
-                }}
-              >
-                <Link
-                  to={"/mainapp/" + timetables[i]._id}
-                  style={{ color: "white" }}
+              <Link to={"/mainapp/" + timetables[i]._id}>
+                <Button
+                  variant="primary"
+                  style={{
+                    backgroundColor: "#00adb5",
+                    borderColor: "#00adb5",
+                  }}
                 >
                   See Timetable!
-                </Link>
-              </Button>
+                </Button>
+              </Link>
             </Card.Body>
           </Card>
         </Col>
@@ -83,7 +80,7 @@ class Dashboard extends Component {
     for (let i = 0; i < columns.length; i = i + 3) {
       console.log(i);
       rows.push(
-        <Row style={{ paddingLeft: "15%", paddingRight: "15%" }}>
+        <Row style={{ paddingLeft: "15%", paddingRight: "15%", margin: "1%" }}>
           {columns.slice(i, i + 3).map((column, key) => column)}
         </Row>
       );
@@ -94,22 +91,30 @@ class Dashboard extends Component {
   render() {
     return (
       <div>
-        <Jumbotron>
-          <h1>Timetables</h1>
+        <Jumbotron
+          style={{
+            backgroundColor: "white",
+            margin: "1% 25%",
+            padding: "5% 10%",
+          }}
+        >
+          <h1>Start Generating a New Timetable</h1>
           <p>
-            This is a simple hero unit, a simple jumbotron-style component for
-            calling extra attention to featured content or information.
+            Click on the first Card to Start Generating a new Timetable. View
+            other Timetables you have created
           </p>
           <p>
-            <Button
-              variant="primary"
-              style={{
-                backgroundColor: "#00adb5",
-                borderColor: "#00adb5",
-              }}
-            >
-              Learn more
-            </Button>
+            <Link to={"/about"}>
+              <Button
+                variant="primary"
+                style={{
+                  backgroundColor: "#00adb5",
+                  borderColor: "#00adb5",
+                }}
+              >
+                About
+              </Button>
+            </Link>
           </p>
         </Jumbotron>
         {this.displayTimetableDetails(this.state.timetables)}

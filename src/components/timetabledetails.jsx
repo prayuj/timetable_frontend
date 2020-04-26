@@ -4,6 +4,8 @@ import Button from "react-bootstrap/Button";
 import axios from "axios";
 import Table from "react-bootstrap/Table";
 import { Link } from "react-router-dom";
+import Modal from "react-bootstrap/Modal";
+import Form from "react-bootstrap/Form";
 
 class TimetableDetails extends Component {
   constructor(props) {
@@ -15,14 +17,31 @@ class TimetableDetails extends Component {
       desc: props.desc,
       input: props.input,
       generation: props.generation,
+      show: false,
+      modal_text: "",
+      border: "",
     };
     this.startMainApp = this.startMainApp.bind(this);
+    this.onDeleteHandler = this.onDeleteHandler.bind(this);
   }
   componentDidUpdate(prevProps) {
     if (JSON.stringify(prevProps) !== JSON.stringify(this.props)) {
       this.setState(this.props);
     }
   }
+
+  onDeleteHandler() {
+    if (this.state.modal_text === "DELETE") {
+      axios
+        .post("http://127.0.0.1:5000/deletetimetable", {
+          timetableObjectID: this.state.timetableObjectID,
+        })
+        .then((res) => (window.location.href = "/"));
+    } else {
+      this.setState({ border: "2px solid red" });
+    }
+  }
+
   startMainApp() {
     window.location.href = "/mainapp/" + this.state.timetableObjectID;
   }
@@ -31,7 +50,7 @@ class TimetableDetails extends Component {
       <Jumbotron
         style={{
           backgroundColor: "white",
-          margin: "5% 25%",
+          margin: "1% 25%",
           padding: "5% 10%",
         }}
       >
@@ -42,6 +61,12 @@ class TimetableDetails extends Component {
             style={{ color: "black" }}
           >
             <span class="material-icons">create</span>
+          </Link>
+          <Link
+            style={{ color: "black" }}
+            onClick={() => this.setState({ show: true })}
+          >
+            <span class="material-icons">delete</span>
           </Link>
         </div>
         <Table striped bordered hover style={{ textAlign: "left" }}>
@@ -156,6 +181,44 @@ class TimetableDetails extends Component {
           </tbody>
         </Table>
         <p></p>
+        <Modal
+          show={this.state.show}
+          onHide={() => this.setState({ show: false })}
+        >
+          <Modal.Header closeButton>
+            <Modal.Title>Delete Timetable</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Form.Group>
+              <Form.Label style={{ padding: "2%" }}>
+                Type "DELETE" to remove this Timetable!
+              </Form.Label>
+              <Form.Control
+                type="text"
+                style={{
+                  textAlign: "left",
+                  padding: "2%",
+                  border: this.state.border,
+                }}
+                value={this.state.modal_text}
+                onChange={(e) =>
+                  this.setState({ modal_text: e.target.value, border: "" })
+                }
+              />
+            </Form.Group>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button
+              variant="secondary"
+              onClick={() => this.setState({ show: false })}
+            >
+              Close
+            </Button>
+            <Button variant="primary" onClick={this.onDeleteHandler}>
+              Save Changes
+            </Button>
+          </Modal.Footer>
+        </Modal>
       </Jumbotron>
     );
   }

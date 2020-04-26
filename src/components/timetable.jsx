@@ -12,6 +12,8 @@ import Overlay from "react-bootstrap/Overlay";
 import Popover from "react-bootstrap/Popover";
 import Badge from "react-bootstrap/Badge";
 import Alert from "react-bootstrap/Alert";
+import Modal from "react-bootstrap/Modal";
+import Form from "react-bootstrap/Form";
 
 class Timetable extends Component {
   constructor(props) {
@@ -27,11 +29,16 @@ class Timetable extends Component {
       jumbotron_title: "Slots Left to Schedule",
       add_select: false,
       show_alert: false,
+      alert_message: "",
+      selected: [],
+      show_change_room_modal: false,
+      rooms: [],
     };
     this.handleSlotClick = this.handleSlotClick.bind(this);
     this.removeSlot = this.removeSlot.bind(this);
     this.handleAddClick = this.handleAddClick.bind(this);
     this.handleScheduleSlotClick = this.handleScheduleSlotClick.bind(this);
+    this.changeRoom = this.changeRoom.bind(this);
   }
 
   componentDidMount() {
@@ -45,13 +52,19 @@ class Timetable extends Component {
   }
 
   removeSlot() {
+    let slots = [];
+    let selected = this.state.selected;
+    for (let i = 0; i < selected.length; i++)
+      slots[i] = {
+        column_number: parseInt(selected[i].split(" ")[0]),
+        row_number: parseInt(selected[i].split(" ")[1]),
+      };
+    console.log(slots);
+    this.setState({ selected: [] });
     axios
       .post("http://127.0.0.1:5000/remove_slot", {
         timetableObjectID: this.state.timetableObjectID,
-        column_number: parseInt(
-          this.state.target.getAttribute("column_number")
-        ),
-        row_number: parseInt(this.state.target.getAttribute("row_number")),
+        slots: slots,
       })
       .then((res) => {
         this.setState(res.data);
@@ -59,10 +72,28 @@ class Timetable extends Component {
   }
 
   handleSlotClick(event) {
-    this.setState({
-      popoverShow: this.state.target,
-      target: event.target,
-    });
+    if (event.target.getAttribute("column_number")) {
+      let selected = this.state.selected;
+      let slot =
+        event.target.getAttribute("column_number") +
+        " " +
+        event.target.getAttribute("row_number");
+
+      if (!selected.includes(slot))
+        selected.push(
+          event.target.getAttribute("column_number") +
+            " " +
+            event.target.getAttribute("row_number")
+        );
+      else {
+        selected.splice(selected.indexOf(slot), 1);
+      }
+      console.log(selected[selected.length - 1]);
+      this.setState({
+        selected: selected,
+        last_selected: selected[selected.length - 1],
+      });
+    }
   }
 
   handleAddClick(event) {
@@ -88,15 +119,48 @@ class Timetable extends Component {
         })
         .then((res) => {
           if (res.data.status === "done") this.setState(res.data);
-          else
+          else {
             this.setState({
               show_alert: true,
+              alert_message: res.data.message,
             });
+            setTimeout(() => this.setState({ show_alert: false }), 5000);
+          }
           this.setState({
             show: false,
           });
         });
   }
+
+  changeRoom(event) {
+    if (this.state.show_change_room_modal) {
+      this.setState({ selected: [], last_selected: undefined });
+      axios
+        .post("http://127.0.0.1:5000/change_room", {
+          timetableObjectID: this.state.timetableObjectID,
+          rooms: this.state.rooms,
+          column_number: parseInt(this.state.last_selected.split(" ")[0]),
+          row_number: parseInt(this.state.last_selected.split(" ")[1]),
+        })
+        .then((res) => {
+          console.log(res.data);
+          if (res.data.status === "done") this.setState(res.data);
+          else {
+            this.setState({
+              show_alert: true,
+              alert_message: res.data.message,
+            });
+            setTimeout(() => this.setState({ show_alert: false }), 5000);
+          }
+          this.setState({
+            show_change_room_modal: false,
+          });
+        });
+    } else {
+      this.setState({ show_change_room_modal: true });
+    }
+  }
+
   render() {
     return (
       <div style={{ position: "absolute" }}>
@@ -125,7 +189,11 @@ class Timetable extends Component {
               {this.state.table_data ? (
                 <>
                   {this.state.table_data.map((data, index) => (
-                    <tr>
+                    <tr
+                      className={
+                        index % this.state.no_of_hours == 0 ? "day_row" : ""
+                      }
+                    >
                       {data.map((item, key) =>
                         item.item == "day" ? (
                           <td
@@ -135,7 +203,21 @@ class Timetable extends Component {
                             {item.iterable}
                           </td>
                         ) : item.item == "slot" ? (
-                          <td>{item.iterable}</td>
+                          <td style={{ width: "100%", height: "100%" }}>
+                            <table
+                              style={{
+                                tableLayout: "fixed",
+                                width: "100%",
+                                height: "100%",
+                              }}
+                            >
+                              <tbody>
+                                <tr>
+                                  <td>{item.iterable}</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </td>
                         ) : (
                           <td style={{ width: "100%", height: "100%" }}>
                             <table
@@ -157,6 +239,15 @@ class Timetable extends Component {
                                           }}
                                           column_number={slot.column_number}
                                           row_number={slot.row_number}
+                                          className={
+                                            this.state.selected.includes(
+                                              slot.column_number +
+                                                " " +
+                                                slot.row_number
+                                            )
+                                              ? "selected"
+                                              : ""
+                                          }
                                         >
                                           {slot.slot}
                                         </td>
@@ -181,6 +272,15 @@ class Timetable extends Component {
                                         style={{ backgroundColor: slot.color }}
                                         column_number={slot.column_number}
                                         row_number={slot.row_number}
+                                        className={
+                                          this.state.selected.includes(
+                                            slot.column_number +
+                                              " " +
+                                              slot.row_number
+                                          )
+                                            ? "selected"
+                                            : ""
+                                        }
                                       >
                                         {slot.slot}
                                       </td>
@@ -259,7 +359,7 @@ class Timetable extends Component {
             style={{
               position: "fixed",
               top: "10%",
-              left: "1%",
+              right: "1%",
             }}
             onClick={() =>
               this.setState({
@@ -271,6 +371,47 @@ class Timetable extends Component {
             Show
           </Button>
         )}
+        <Button
+          style={{
+            position: "fixed",
+            top: "10%",
+            left: "1%",
+          }}
+          id="main"
+          onClick={this.props.sendDataHere}
+        >
+          <span
+            class="material-icons"
+            id="main"
+            style={{ verticalAlign: "bottom" }}
+            onClick={this.props.sendDataHere}
+          >
+            arrow_back
+          </span>
+        </Button>
+        <Button
+          variant="warning"
+          style={{
+            position: "fixed",
+            top: "10%",
+            right: "20%",
+          }}
+          onClick={this.changeRoom}
+          disabled={!this.state.last_selected}
+        >
+          Change Room
+        </Button>
+        <Button
+          variant="danger"
+          style={{
+            position: "fixed",
+            top: "10%",
+            right: "10%",
+          }}
+          onClick={this.removeSlot}
+        >
+          Remove{" " + this.state.selected.length}
+        </Button>
         <Overlay
           show={this.state.popoverShow}
           target={this.state.target}
@@ -326,8 +467,48 @@ class Timetable extends Component {
           show={this.state.show_alert}
         >
           <Alert.Heading>Oh snap! You got an error!</Alert.Heading>
-          <p>The Slot could not be Scheduled</p>
+          <p>{this.state.alert_message}</p>
         </Alert>
+        <Modal
+          show={this.state.show_change_room_modal}
+          onHide={() => this.setState({ show_change_room_modal: false })}
+        >
+          <Modal.Header closeButton>
+            <Modal.Title>Choose Rooms</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Form>
+              <Row>
+                {this.state.rooms.map((room, index) => (
+                  <Col xs={4}>
+                    <Form.Check
+                      type="checkbox"
+                      label={room.name}
+                      id={index}
+                      checked={room.selected}
+                      onChange={(event) => {
+                        let rooms = this.state.rooms;
+                        rooms[index]["selected"] = !rooms[index]["selected"];
+                        this.setState(rooms);
+                      }}
+                    />
+                  </Col>
+                ))}
+              </Row>
+            </Form>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button
+              variant="secondary"
+              onClick={() => this.setState({ show_change_room_modal: false })}
+            >
+              Close
+            </Button>
+            <Button variant="primary" onClick={this.changeRoom}>
+              Update Room
+            </Button>
+          </Modal.Footer>
+        </Modal>
       </div>
     );
   }

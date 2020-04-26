@@ -5,6 +5,7 @@ import NewTimetable from "./components/newtimetable";
 import UpdateTimetable from "./components/updatetimetable";
 import TimetableDetails from "./components/timetabledetails";
 import MainApp from "./components/mainapp";
+import About from "./components/about";
 import "./App.css";
 import {
   BrowserRouter as Router,
@@ -95,7 +96,7 @@ class App extends Component {
           style={{ paddingLeft: "15%", paddingRight: "15%" }}
         >
           <NavLink className="navbar-brand" to="/">
-            Timetable Gen
+            GATimetable
           </NavLink>
           <Nav className="mr-auto">
             <NavLink className="nav-link" to="/dashboard">
@@ -136,6 +137,13 @@ class App extends Component {
             <Route path="/dashboard">
               {this.state.isLoggedin ? (
                 <Dashboard objectID={this.state.objectID}></Dashboard>
+              ) : (
+                <Redirect to="/login" />
+              )}
+            </Route>
+            <Route path="/about">
+              {this.state.isLoggedin ? (
+                <About objectID={this.state.objectID}></About>
               ) : (
                 <Redirect to="/login" />
               )}

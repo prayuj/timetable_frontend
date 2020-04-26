@@ -69,7 +69,7 @@ class Hour:
     def __init__(self, id, name, status):
         self.id = id
         self.name = name
-        self.staus = status
+        self.status = status
 
 
 @app.route("/user/register", methods=["POST"])
@@ -167,6 +167,20 @@ def gettimetables(userid):
     return {"timetables": result}
 
 
+@app.route("/deletetimetable", methods=["POST"])
+def deletetimetable():
+    data = request.get_json()
+    print(data)
+    result = mongo.db.chromosome_to_fitness.delete_many(
+        {"timetableObjectID": ObjectId(data["timetableObjectID"])})
+    result = mongo.db.target_matrix.delete_many(
+        {"timetableObjectID": ObjectId(data["timetableObjectID"])})
+    result = mongo.db.user_timetables.delete_many(
+        {"_id": ObjectId(data["timetableObjectID"])})
+
+    return {"status": "done"}
+
+
 @app.route("/update_timetable", methods=["POST"])
 def update_timetable():
     data = request.get_json()
@@ -202,6 +216,7 @@ def update_timetable():
         hours_list.append(Hour(count, hour["name"], hour["status"]))
         count += 1
     no_of_hours = count
+    print(hours_list[0].status)
 
     count = 0
     for room in data["rooms"]:
@@ -213,8 +228,8 @@ def update_timetable():
         day_count_dict = {}
         for day_index in range(no_of_days):
             day_count_dict[day_index] = 0
-        course_list.append(Course(course["course_id"], course["course_name"], course["no_hours_per_week"], len(course["valid_rooms"]), course["valid_rooms"],
-                                  course["max_no_hours_per_day"], course["max_consecutive_hours_per_day"], course["no_of_hours_to_schedule_when_assigning"], day_count_dict, False, False))
+        course_list.append(Course(course["course_id"], course["course_name"], int(course["no_hours_per_week"]), len(course["valid_rooms"]), course["valid_rooms"],
+                                  int(course["max_no_hours_per_day"]), int(course["max_consecutive_hours_per_day"]), int(course["no_of_hours_to_schedule_when_assigning"]), day_count_dict, False, False))
         count += 1
 
     count = 0
@@ -228,8 +243,8 @@ def update_timetable():
         day_count_dict = {}
         for day_index in range(no_of_days):
             day_count_dict[day_index] = 0
-        lecturer_list.append(Lecturer(count, lecturer["name"], lecturer["department"], lecturer["max_no_hours_per_day"], lecturer["max_no_hours_per_week"],
-                                      lecturer["max_consecutive_hours"], lecturer["rank"], lecturer["availability"], lecturer["courses"], day_count_dict))
+        lecturer_list.append(Lecturer(count, lecturer["name"], lecturer["department"], int(lecturer["max_no_hours_per_day"]), int(lecturer["max_no_hours_per_week"]),
+                                      int(lecturer["max_consecutive_hours"]), lecturer["rank"], lecturer["availability"], lecturer["courses"], day_count_dict))
         count += 1
 
     for day in days_list:
@@ -257,28 +272,39 @@ def update_timetable():
                 course = course.split()[0]
                 for student_group in student_group_list:
                     if course in student_group.courses:
-                        columns[count] = {
-                            "lecturer": lecturer.id, "student_group": student_group.id, "course": course, "subset": "all"}
-                        hours_for_columns[count] = course_dictionary[course].no_of_hours
-                        count += 1
+                        i = course_dictionary[course].no_of_hours
+                        while i > 0:
+                            columns[count] = {
+                                "lecturer": lecturer.id, "student_group": student_group.id, "course": course, "subset": "all"}
+                            hours_for_columns[count] = course_dictionary[course].no_of_hours_to_schedule_when_assigning
+                            i -= course_dictionary[course].no_of_hours_to_schedule_when_assigning
+                            count += 1
             elif "Batch-" in course:
                 course, batch = course.split()
                 batch = batch.split('-')[1]
                 for student_group in student_group_list:
                     if course in student_group.courses:
-                        columns[count] = {"lecturer": lecturer.id, "student_group": student_group.id,
-                                          "course": course, "subset": "batch", "batch": batch}
-                        hours_for_columns[count] = course_dictionary[course].no_of_hours
-                        count += 1
+                        i = course_dictionary[course].no_of_hours
+                        while i > 0:
+                            columns[count] = {"lecturer": lecturer.id, "student_group": student_group.id,
+                                              "course": course, "subset": "batch", "batch": batch}
+                            hours_for_columns[count] = course_dictionary[course].no_of_hours_to_schedule_when_assigning
+                            i -= course_dictionary[course].no_of_hours_to_schedule_when_assigning
+                            count += 1
             elif "Group" in course:
                 course, group = course.split()
                 group = group.split('_')[1]
                 for student_group in student_group_list:
                     if course in student_group.courses:
-                        columns[count] = {"lecturer": lecturer.id, "student_group": student_group.id,
-                                          "course": course, "subset": "group", "batch": group}
-                        hours_for_columns[count] = course_dictionary[course].no_of_hours
-                        count += 1
+                        i = course_dictionary[course].no_of_hours
+                        while i > 0:
+                            columns[count] = {"lecturer": lecturer.id, "student_group": student_group.id,
+                                              "course": course, "subset": "group", "batch": group}
+                            hours_for_columns[count] = course_dictionary[course].no_of_hours_to_schedule_when_assigning
+                            i -= course_dictionary[course].no_of_hours_to_schedule_when_assigning
+                            count += 1
+
+    print("Length of Columns:", len(columns))
 
     for day in days_list:
         hour_temp_dict = {}
@@ -303,18 +329,20 @@ def update_timetable():
         total_hours += hours_for_columns[hours]
 
     population = []
-    for x in range(data["population_size"]):
+    while len(population) < data["population_size"]:
         q = column_numbers.copy()
         random.shuffle(q)
-        population.append(q)
+        if q not in population:
+            population.append(q)
 
     color_for_columns = {}
-
-    for i in range(len(columns)):
-        color_for_columns[str(i)] = "#"+hex(random.randint(128, 255)).lstrip("0x")+hex(
+    for key, val in columns.items():
+        color_for_columns[str(val)] = "#"+hex(random.randint(128, 255)).lstrip("0x")+hex(
             random.randint(128, 255)).lstrip("0x")+hex(random.randint(128, 255)).lstrip("0x")
 
     result = mongo.db.chromosome_to_fitness.delete_many(
+        {"timetableObjectID": ObjectId(data["timetableObjectID"])})
+    result = mongo.db.target_matrix.delete_many(
         {"timetableObjectID": ObjectId(data["timetableObjectID"])})
     result = mongo.db.chromosome_to_target_matrix.delete_many(
         {"timetableObjectID": ObjectId(data["timetableObjectID"])})
@@ -396,14 +424,14 @@ def no_batch_conflicts(subset, target_matrix, rows, columns, day, hour, batch, s
 
 
 def updatedScheduleCourse(valid_rows, rows_invert, no_of_hours_to_schedule_when_assigning, rows, columns, target_matrix, lecturer_id, student_group_id, column_number, lecturer_dictionary, course_dictionary):
-    #row_id_to_schedule = random.choice(valid_rows)
+    # row_id_to_schedule = random.choice(valid_rows)
     row_id_to_schedule = valid_rows[0]
     no_of_hours_scheduled = 0
     for k in range(no_of_hours_to_schedule_when_assigning):
         day = rows[row_id_to_schedule+k]["day"]
         hour = rows[row_id_to_schedule+k]["hour"]
         room = rows[row_id_to_schedule+k]["room"]
-    #print(day, hour,room_dictionary[room].name)
+    # print(day, hour,room_dictionary[room].name)
 
         for j in range(len(columns)):
             target_matrix[row_id_to_schedule+k][j] = -1
@@ -414,7 +442,9 @@ def updatedScheduleCourse(valid_rows, rows_invert, no_of_hours_to_schedule_when_
                     target_matrix[val][j] = -1
         try:
             for key, val in rows_invert[day][hour+course_dictionary[columns[column_number]["course"]].max_consecutive_hours].items():
-                target_matrix[val][column_number] = -1
+                for j in range(len(columns)):
+                    if columns[j]["course"] == columns[column_number]["course"]:
+                        target_matrix[val][j] = -1
         except:
             pass
         lecturer_dictionary[lecturer_id].day_count_dict[day] += 1
@@ -445,7 +475,6 @@ def fillTargetMatrix(target_matrix_template, column_numbers, columns, hours_for_
                 if len(valid_rows) == 0:
                     no_hours_not_scheduled += no_of_hours_to_schedule
                     break
-                print(valid_rows)
                 target_matrix, no_of_hours_scheduled = updatedScheduleCourse(
                     valid_rows, rows_invert, no_of_hours_to_schedule_when_assigning, rows, columns, target_matrix, lecturer_id, student_group_id, column_number, lecturer_dictionary, course_dictionary)
                 no_of_hours_to_schedule -= no_of_hours_scheduled
@@ -564,7 +593,7 @@ def handle_fill_target_matrix():
     column_numbers = data["column_numbers"]
     target_matrix_template = np.zeros((len(rows), len(columns)))
     for i in range(len(rows)):
-        if rows[i]["hour"] == 2 or rows[i]["hour"] == 5:
+        if not hour_dictionary[rows[i]["hour"]].status:
             for j in range(len(columns)):
                 target_matrix_template[i][j] = -1
     target_matrix, fitness = fillTargetMatrix(target_matrix_template, column_numbers, columns, hours_for_columns, rows, rows_invert, day_dictionary,
@@ -634,16 +663,18 @@ def crossover(parent1, parent2):
 
 
 def geneticAlgorithm(prev_population, number_of_population):
-    new_population = elitism_selection(prev_population, 10)
-    for i in range(number_of_population//2 - len(new_population)//2):
+    new_population = elitism_selection(prev_population, 10).copy()
+    while len(new_population) < number_of_population:
         parent1 = selection(prev_population)
         parent2 = selection(prev_population)
         child1, child2 = crossover(parent1, parent2)
         child1 = mutation(child1, len(child1))
         child2 = mutation(child2, len(child2))
-        new_population.append(child1)
-        new_population.append(child2)
-    return new_population[:number_of_population]
+        if child1 not in new_population:
+            new_population.append(child1)
+        if child2 not in new_population:
+            new_population.append(child2)
+    return new_population
 
 
 @app.route("/genetic_algorithm", methods=["POST"])
@@ -685,6 +716,8 @@ def create_new_population():
     chart_data.append([generation, maximum, average, minimum])
     res = mongo.db.user_timetables.update_one({"_id": ObjectId(timetableObjectID)}, {
                                               "$set": {"generation": generation+1, "population": new_population, "chart_data": chart_data}})
+
+    print(new_population)
 
     return {"new_population": new_population, "maximum": maximum, "minimum": minimum, "average": average}
 
@@ -731,7 +764,7 @@ def save_maximum():
 
     target_matrix_template = np.zeros((len(rows), len(columns)))
     for i in range(len(rows)):
-        if rows[i]["hour"] == 2 or rows[i]["hour"] == 5:
+        if not hour_dictionary[rows[i]["hour"]].status:
             for j in range(len(columns)):
                 target_matrix_template[i][j] = -1
     target_matrix, fitness = fillTargetMatrix(target_matrix_template, maximum_chromosome, columns, hours_for_columns, rows, rows_invert, day_dictionary,
@@ -741,7 +774,7 @@ def save_maximum():
                                             "$set": {"target_matrix": Binary(pickle.dumps(target_matrix))}}, True)
 
     res = mongo.db.user_timetables.update_one({"_id": ObjectId(data["timetableObjectID"])}, {
-                                              "$set": {"generation_with_maximum": data["generation_with_maximum"], "maximum_chromosome": maximum_chromosome, "i": i, "current": "timetable"}})
+        "$set": {"generation_with_maximum": data["generation_with_maximum"], "maximum_chromosome": maximum_chromosome, "i": i, "current": "timetable"}})
     return {"status": "done"}
 
 
@@ -955,12 +988,12 @@ def getTableData(target_matrix, color_for_columns, rows, hours_for_columns, colu
             if target_matrix[i][j] == 1:
                 if str(rows[i]["day"])+" "+str(rows[i]["hour"]) in student_group_slots[columns[j]["student_group"]]:
                     student_group_slots[columns[j]["student_group"]][str(rows[i]["day"])+" "+str(rows[i]["hour"])].append({"slot": course_dictionary[columns[j]["course"]].id+" "+name(
-                        lecturer_dictionary[columns[j]["lecturer"]].name)+" "+room_dictionary[rows[i]["room"]].name+(" "+columns[j]["subset"].capitalize()+" "+columns[j]["batch"] if columns[j]["subset"] != "all" else ""), "color": color_for_columns[str(j)], "row_number": i, "column_number": j, "day": rows[i]["day"], "hour": rows[i]["hour"]})
+                        lecturer_dictionary[columns[j]["lecturer"]].name)+" "+room_dictionary[rows[i]["room"]].name+(" "+columns[j]["subset"].capitalize()+" "+columns[j]["batch"] if columns[j]["subset"] != "all" else ""), "color": color_for_columns[str(columns[j])], "row_number": i, "column_number": j, "day": rows[i]["day"], "hour": rows[i]["hour"]})
                     student_group_slots[columns[j]["student_group"]][str(
                         rows[i]["day"])+" "+str(rows[i]["hour"])].sort(key=lambda x: x["slot"].split(" ")[-1])
                 else:
                     student_group_slots[columns[j]["student_group"]][str(rows[i]["day"])+" "+str(rows[i]["hour"])] = [{"slot": course_dictionary[columns[j]["course"]].id+" "+name(
-                        lecturer_dictionary[columns[j]["lecturer"]].name)+" "+room_dictionary[rows[i]["room"]].name+(" "+columns[j]["subset"].capitalize()+" "+columns[j]["batch"] if columns[j]["subset"] != "all" else ""), "color": color_for_columns[str(j)], "row_number": i, "column_number": j, "day": rows[i]["day"], "hour": rows[i]["hour"]}]
+                        lecturer_dictionary[columns[j]["lecturer"]].name)+" "+room_dictionary[rows[i]["room"]].name+(" "+columns[j]["subset"].capitalize()+" "+columns[j]["batch"] if columns[j]["subset"] != "all" else ""), "color": color_for_columns[str(columns[j])], "row_number": i, "column_number": j, "day": rows[i]["day"], "hour": rows[i]["hour"]}]
 
     for s in student_group_slots:
         for i in range(no_of_days):
@@ -995,7 +1028,7 @@ def getTableData(target_matrix, color_for_columns, rows, hours_for_columns, colu
             if target_matrix[i][j] == 1:
                 summation += 1
         slots_left_to_schedule.append({"slot": columns[j]["course"] + " "+name(lecturer_dictionary[columns[j]["lecturer"]].name)+" "+(" "+columns[j]["subset"].capitalize()+" "+columns[j]["batch"] if columns[j]["subset"] != "all" else ""),
-                                       "color": color_for_columns[str(j)],
+                                       "color": color_for_columns[str(columns[j])],
                                        "available": hours_for_columns[j] - summation,
                                        "column_number": j})
 
@@ -1005,6 +1038,8 @@ def getTableData(target_matrix, color_for_columns, rows, hours_for_columns, colu
     data["table_data"] = table_data
     data["no_of_hours"] = no_of_hours
     data["slots_left_to_schedule"] = slots_left_to_schedule
+    data["rooms"] = [{"id": x, "name": y.name, "selected": False}
+                     for x, y in room_dictionary.items()]
     return data
 
 
@@ -1050,39 +1085,69 @@ def get_complete_timetable():
     return data
 
 
-def removeSlot(remove_data, rows, columns, target_matrix, timetableObjectID, maximum_chromosome, generation_with_maximum, iteration):
-    day = rows[remove_data["row_number"]]["day"]
-    hour = rows[remove_data["row_number"]]["hour"]
-    lecturer_id = columns[remove_data["column_number"]]["lecturer"]
-    student_group_id = columns[remove_data["column_number"]]["student_group"]
-    subset = columns[remove_data["column_number"]]["subset"]
+# def removeSlot(remove_data, rows, columns, target_matrix, timetableObjectID, maximum_chromosome, generation_with_maximum, iteration):
+#     day = rows[remove_data["row_number"]]["day"]
+#     hour = rows[remove_data["row_number"]]["hour"]
+#     lecturer_id = columns[remove_data["column_number"]]["lecturer"]
+#     student_group_id = columns[remove_data["column_number"]]["student_group"]
+#     subset = columns[remove_data["column_number"]]["subset"]
 
-    if subset == "all":
-        for j in range(len(columns)):
-            target_matrix[remove_data["row_number"]][j] = 0
-        for i in range(len(rows)):
-            for j in range(len(columns)):
-                if rows[i]["day"] == day and rows[i]["hour"] == hour and columns[j]["lecturer"] == lecturer_id and target_matrix[i][j] == -1:
-                    target_matrix[i][j] = 0
-                if rows[i]["day"] == day and rows[i]["hour"] == hour and columns[j]["student_group"] == student_group_id and target_matrix[i][j] == -1:
-                    target_matrix[i][j] = 0
+#     target_matrix[remove_data["row_number"]][remove_data["column_number"]] = 0
 
-    else:
-        batch = columns[remove_data["column_number"]]["batch"]
-        for j in range(len(columns)):
-            target_matrix[remove_data["row_number"]][j] = 0
+#     row_validity_flag = []
 
-        for i in range(len(rows)):
-            for j in range(len(columns)):
-                if rows[i]["day"] == day and rows[i]["hour"] == hour and columns[j]["lecturer"] == lecturer_id and target_matrix[i][j] == -1:
-                    target_matrix[i][j] = 0
-                if rows[i]["day"] == day and rows[i]["hour"] == hour and columns[j]["student_group"] == student_group_id and columns[j]["subset"] != subset and target_matrix[i][j] == -1:
-                    target_matrix[i][j] = 0
-                if rows[i]["day"] == day and rows[i]["hour"] == hour and columns[j]["student_group"] == student_group_id and columns[j]["subset"] == subset and columns[j]["batch"] == batch and target_matrix[i][j] == -1:
-                    target_matrix[i][j] = 0
+#     for i in range(len(rows)):
+#         flag = True
+#         for j in range(len(columns)):
+#             if target_matrix[i][j] == 1:
+#                 flag = False
+#                 break
+#         row_validity_flag.append(flag)
 
+#     if subset == "all":
+#         for j in range(len(columns)):
+#             if target_matrix[remove_data["row_number"]][j] == 1:
+#                 print(1, j)
+#             target_matrix[remove_data["row_number"]][j] = 0
+#         if row_validity_flag[i]:
+#             for i in range(len(rows)):
+#                 for j in range(len(columns)):
+#                     if rows[i]["day"] == day and rows[i]["hour"] == hour and columns[j]["lecturer"] == lecturer_id:
+#                         if target_matrix[i][j] == 1:
+#                             print(2, i, j)
+#                         target_matrix[i][j] = 0
+#                     if rows[i]["day"] == day and rows[i]["hour"] == hour and columns[j]["student_group"] == student_group_id:
+#                         if target_matrix[i][j] == 1:
+#                             print(2, i, j)
+#                         target_matrix[i][j] = 0
+
+#     else:
+#         batch = columns[remove_data["column_number"]]["batch"]
+#         for j in range(len(columns)):
+#             if target_matrix[remove_data["row_number"]][j] == 1:
+#                 print(1, j)
+#             target_matrix[remove_data["row_number"]][j] = 0
+
+#         for i in range(len(rows)):
+#             if row_validity_flag[i]:
+#                 for j in range(len(columns)):
+#                     if rows[i]["day"] == day and rows[i]["hour"] == hour and columns[j]["lecturer"] == lecturer_id:
+#                         # if target_matrix[i][j] == 1:
+#                         print(2, i, j)
+#                         target_matrix[i][j] = 0
+#                     if rows[i]["day"] == day and rows[i]["hour"] == hour and columns[j]["student_group"] == student_group_id and columns[j]["subset"] != subset:
+#                         # if target_matrix[i][j] == 1:
+#                         print(3, i, j)
+#                         target_matrix[i][j] = 0
+#                     if rows[i]["day"] == day and rows[i]["hour"] == hour and columns[j]["student_group"] == student_group_id and columns[j]["subset"] == subset and columns[j]["batch"] == batch:
+#                         # if target_matrix[i][j] == 1:
+#                         print(4, i, j)
+#                         target_matrix[i][j] = 0
+
+#     return target_matrix
+
+def removeSlot(remove_data, target_matrix):
     target_matrix[remove_data["row_number"]][remove_data["column_number"]] = 0
-
     return target_matrix
 
 
@@ -1096,10 +1161,6 @@ def remove_slot():
 
     data = request.get_json()
     timetableObjectID = data["timetableObjectID"]
-    row_number = data["row_number"]
-    column_number = data["column_number"]
-    print(data)
-    remove_data = {"row_number": row_number, "column_number": column_number}
 
     result = mongo.db.user_timetables.find_one(
         {"_id": ObjectId(timetableObjectID)})
@@ -1126,8 +1187,16 @@ def remove_slot():
 
     target_matrix = pickle.loads(res["target_matrix"])
 
-    target_matrix = removeSlot(remove_data, rows, columns, target_matrix,
-                               timetableObjectID, maximum_chromosome, generation_with_maximum, i)
+    for slot in data["slots"]:
+        target_matrix = removeSlot(slot, target_matrix)
+
+        # row_number = data["row_number"]
+        # column_number = data["column_number"]
+        # print(data)
+        # remove_data = {"row_number": row_number, "column_number": column_number}
+
+    # target_matrix = removeSlot(remove_data, rows, columns, target_matrix,
+    #                            timetableObjectID, maximum_chromosome, generation_with_maximum, i)
 
     res = mongo.db.target_matrix.update_one({"timetableObjectID": ObjectId(timetableObjectID)}, {
                                             "$set": {"target_matrix": Binary(pickle.dumps(target_matrix))}}, True)
@@ -1138,8 +1207,70 @@ def remove_slot():
     return data
 
 
-def addSlot(add_data, columns, rows, room_dictionary, course_dictionary, target_matrix):
-    # add_data = {"column_number": 67, "day": 0, "hour": 0}
+# def addSlot(add_data, columns, rows, room_dictionary, course_dictionary, target_matrix):
+#     # add_data = {"column_number": 67, "day": 0, "hour": 0}
+#     column_number = add_data["column_number"]
+#     day = add_data["day"]
+#     hour = add_data["hour"]
+#     lecturer_id = columns[add_data["column_number"]]["lecturer"]
+#     student_group_id = columns[add_data["column_number"]]["student_group"]
+#     course = columns[add_data["column_number"]]["course"]
+#     subset = columns[add_data["column_number"]]["subset"]
+#     scheduled = False
+#     if subset == "all":
+#         print(day, hour, lecturer_id, student_group_id, course, subset)
+#         for r in range(len(rows)):
+#             if rows[r]["day"] == day and rows[r]["hour"] == hour and room_dictionary[rows[r]["room"]].name in course_dictionary[course].valid_rooms and target_matrix[r][column_number] == 0:
+#                 for j in range(len(columns)):
+#                     if target_matrix[r][j] == 1:
+#                         print(1, j)
+#                     target_matrix[r][j] = -1
+
+#                 for i in range(len(rows)):
+#                     for j in range(len(columns)):
+#                         if rows[i]["day"] == day and rows[i]["hour"] == hour and columns[j]["lecturer"] == lecturer_id:
+#                             if target_matrix[i][j] == 1:
+#                                 print(2, i, j)
+#                             target_matrix[i][j] = -1
+#                         if rows[i]["day"] == day and rows[i]["hour"] == hour and columns[j]["student_group"] == student_group_id:
+#                             if target_matrix[i][j] == 1:
+#                                 print(3, i, j)
+#                             target_matrix[i][j] = -1
+
+#                 target_matrix[r][column_number] = 1
+#                 scheduled = True
+#                 break
+#     else:
+#         batch = columns[add_data["column_number"]]["batch"]
+#         print(day, hour, lecturer_id, student_group_id, course, subset, batch)
+#         for r in range(len(rows)):
+#             if rows[r]["day"] == day and rows[r]["hour"] == hour and room_dictionary[rows[r]["room"]].name in course_dictionary[course].valid_rooms and target_matrix[r][column_number] == 0:
+#                 # Schedule Here
+#                 print(day, hour, room_dictionary[rows[r]["room"]].name)
+#                 for j in range(len(columns)):
+#                     if target_matrix[r][j] == 1:
+#                         print(1, j)
+#                     target_matrix[r][j] = -1
+#                 for i in range(len(rows)):
+#                     for j in range(len(columns)):
+#                         if rows[i]["day"] == day and rows[i]["hour"] == hour and columns[j]["lecturer"] == lecturer_id:
+#                             if target_matrix[i][j] == 1:
+#                                 print(2, i, j)
+#                             target_matrix[i][j] = -1
+#                         if rows[i]["day"] == day and rows[i]["hour"] == hour and columns[j]["student_group"] == student_group_id and columns[j]["subset"] != subset:
+#                             if target_matrix[i][j] == 1:
+#                                 print(3, i, j)
+#                             target_matrix[i][j] = -1
+#                         if rows[i]["day"] == day and rows[i]["hour"] == hour and columns[j]["student_group"] == student_group_id and columns[j]["subset"] == subset and columns[j]["batch"] == batch and target_matrix[i][j] != 1:
+#                             if target_matrix[i][j] == 1:
+#                                 print(4, i, j)
+#                             target_matrix[i][j] = -1
+#                 target_matrix[r][column_number] = 1
+#                 scheduled = True
+#                 break
+#     return scheduled, target_matrix
+
+def addSlot(add_data, target_matrix, rows, rows_invert, columns, room_dictionary, course_dictionary, valid_rooms):
     column_number = add_data["column_number"]
     day = add_data["day"]
     hour = add_data["hour"]
@@ -1147,46 +1278,64 @@ def addSlot(add_data, columns, rows, room_dictionary, course_dictionary, target_
     student_group_id = columns[add_data["column_number"]]["student_group"]
     course = columns[add_data["column_number"]]["course"]
     subset = columns[add_data["column_number"]]["subset"]
-    scheduled = False
+    print(day, hour, lecturer_id, student_group_id, course, subset)
+    scheduled_flag = False
     if subset == "all":
-        print(day, hour, lecturer_id, student_group_id, course, subset)
-        for r in range(len(rows)):
-            if rows[r]["day"] == day and rows[r]["hour"] == hour and room_dictionary[rows[r]["room"]].name in course_dictionary[course].valid_rooms and target_matrix[r][column_number] == 0:
-                # Schedule Here
-                for j in range(len(columns)):
-                    target_matrix[r][j] = -1
-
-                for i in range(len(rows)):
-                    for j in range(len(columns)):
-                        if rows[i]["day"] == day and rows[i]["hour"] == hour and columns[j]["lecturer"] == lecturer_id:
-                            target_matrix[i][j] = -1
-                        if rows[i]["day"] == day and rows[i]["hour"] == hour and columns[j]["student_group"] == student_group_id:
-                            target_matrix[i][j] = -1
-
-                target_matrix[r][column_number] = 1
-                scheduled = True
-                break
+        for room, obj in room_dictionary.items():
+            for j in columns:
+                if columns[j]["lecturer"] == lecturer_id:
+                    if target_matrix[rows_invert[day][hour][room]][j] == 1:
+                        scheduled_flag = True
+                        print("Lecturer Unavailable")
+                        print(day, hour, obj.name)
+                        return False, target_matrix, "Lecturer Unavailable at Day: {} and Hour: {}".format(day+1, hour+1)
+                elif columns[j]["student_group"] == student_group_id:
+                    if target_matrix[rows_invert[day][hour][room]][j] == 1:
+                        scheduled_flag = True
+                        print("Student Group Unavailable")
+                        print(day, hour, obj.name)
+                        return False, target_matrix, "Student Group Unavailable at Day: {} and Hour: {}".format(day+1, hour+1)
     else:
         batch = columns[add_data["column_number"]]["batch"]
-        print(day, hour, lecturer_id, student_group_id, course, subset, batch)
-        for r in range(len(rows)):
-            if rows[r]["day"] == day and rows[r]["hour"] == hour and room_dictionary[rows[r]["room"]].name in course_dictionary[course].valid_rooms and target_matrix[r][column_number] == 0:
-                # Schedule Here
+        for room, obj in room_dictionary.items():
+            for j in columns:
+                if columns[j]["lecturer"] == lecturer_id:
+                    if target_matrix[rows_invert[day][hour][room]][j] == 1:
+                        scheduled_flag = True
+                        print("Lecturer Unavailable")
+                        print(day, hour, obj.name)
+                        return False, target_matrix, "Lecturer Unavailable at Day: {} and Hour: {}".format(day+1, hour+1)
+                elif columns[j]["student_group"] == student_group_id and columns[j]["subset"] != subset:
+                    if target_matrix[rows_invert[day][hour][room]][j] == 1:
+                        scheduled_flag = True
+                        print("Student Group Unavailable")
+                        print(day, hour, obj.name)
+                        return False, target_matrix, "Student Group Unavailable at Day: {} and Hour: {}".format(day+1, hour+1)
+                elif columns[j]["student_group"] == student_group_id and columns[j]["subset"] == subset and columns[j]["batch"] == batch:
+                    if target_matrix[rows_invert[day][hour][room]][j] == 1:
+                        scheduled_flag = True
+                        print("Batch Unavailable")
+                        print(day, hour, obj.name)
+                        return False, target_matrix, "Batch Unavailable at Day: {} and Hour: {}".format(day+1, hour+1)
+
+    room_flag = True
+
+    if not scheduled_flag:
+        for room, obj in room_dictionary.items():
+            if obj.name in valid_rooms:
                 for j in range(len(columns)):
-                    target_matrix[r][j] = -1
-                for i in range(len(rows)):
-                    for j in range(len(columns)):
-                        if rows[i]["day"] == day and rows[i]["hour"] == hour and columns[j]["lecturer"] == lecturer_id:
-                            target_matrix[i][j] = -1
-                        if rows[i]["day"] == day and rows[i]["hour"] == hour and columns[j]["student_group"] == student_group_id and columns[j]["subset"] != subset:
-                            target_matrix[i][j] = -1
-                        if rows[i]["day"] == day and rows[i]["hour"] == hour and columns[j]["student_group"] == student_group_id and columns[j]["subset"] == subset and columns[j]["batch"] == batch and target_matrix[i][j] != 1:
-                            print(i, j)
-                            target_matrix[i][j] = -1
-                target_matrix[r][column_number] = 1
-                scheduled = True
-                break
-    return scheduled, target_matrix
+                    if target_matrix[rows_invert[day][hour][room]][j] == 1:
+                        valid_rooms.remove(obj.name)
+
+    print(valid_rooms)
+    if len(valid_rooms) == 0:
+        print("Room Unavailable")
+        return False, target_matrix, "Rooms Unavailable at Day: {} and Hour: {}".format(day+1, hour+1)
+
+    for room, obj in room_dictionary.items():
+        if obj.name in valid_rooms:
+            target_matrix[rows_invert[day][hour][room]][column_number] = 1
+            return True, target_matrix, "Successfully Added!"
 
 
 @app.route("/add_slot", methods=["POST"])
@@ -1223,14 +1372,18 @@ def add_slot():
     columns = pickle.loads(result["columns"])
     hours_for_columns = pickle.loads(result["hours_for_columns"])
     rows = pickle.loads(result["rows"])
+    rows_invert = pickle.loads(result["rows_invert"])
     color_for_columns = result["color_for_columns"]
 
     res = mongo.db.target_matrix.find_one(
         {"timetableObjectID": ObjectId(timetableObjectID)})
     target_matrix = pickle.loads(res["target_matrix"])
 
-    scheduled, target_matrix = addSlot(
-        add_data, columns, rows, room_dictionary, course_dictionary, target_matrix)
+    course = columns[add_data["column_number"]]["course"]
+    valid_rooms = course_dictionary[course].valid_rooms.copy()
+
+    scheduled, target_matrix, message = addSlot(
+        add_data, target_matrix, rows, rows_invert, columns, room_dictionary, course_dictionary, valid_rooms)
 
     if scheduled:
         res = mongo.db.target_matrix.update_one({"timetableObjectID": ObjectId(timetableObjectID)}, {
@@ -1244,4 +1397,70 @@ def add_slot():
         return data
 
     else:
-        return {"status": "fail"}
+        return {"status": "fail", "message": message}
+
+
+@app.route("/change_room", methods=["POST"])
+def change_room():
+    # data = {
+    # "timetableObjectID":5e92d1c853a18ace9dacfd5d,
+    # "row_number":
+    # "column_number":
+    # }
+    data = request.get_json()
+    print(data)
+    timetableObjectID = data["timetableObjectID"]
+    result = mongo.db.user_timetables.find_one(
+        {"_id": ObjectId(timetableObjectID)})
+    rooms = [x["name"] for x in data["rooms"] if x["selected"]]
+    maximum_chromosome = result["maximum_chromosome"]
+    generation_with_maximum = result["generation_with_maximum"]
+    iteration = result["i"]
+    print(timetableObjectID, maximum_chromosome,
+          generation_with_maximum, iteration)
+    no_of_days = result["no_of_days"]
+    no_of_hours = result["no_of_hours"]
+    day_dictionary = pickle.loads(result["day_dictionary"])
+    hour_dictionary = pickle.loads(result["hour_dictionary"])
+    room_dictionary = pickle.loads(result["room_dictionary"])
+    lecturer_dictionary = pickle.loads(result["lecturer_dictionary"])
+    student_group_dictionary = pickle.loads(result["student_group_dictionary"])
+    course_dictionary = pickle.loads(result["course_dictionary"])
+    columns = pickle.loads(result["columns"])
+    hours_for_columns = pickle.loads(result["hours_for_columns"])
+    rows = pickle.loads(result["rows"])
+    rows_invert = pickle.loads(result["rows_invert"])
+    color_for_columns = result["color_for_columns"]
+
+    res = mongo.db.target_matrix.find_one(
+        {"timetableObjectID": ObjectId(timetableObjectID)})
+    target_matrix = pickle.loads(res["target_matrix"])
+
+    target_matrix = pickle.loads(res["target_matrix"])
+    remove_data = {
+        'column_number': data['column_number'], 'row_number': data['row_number']}
+
+    # First Remove Slot
+    target_matrix = removeSlot(remove_data, target_matrix)
+
+    add_data = {"column_number": data['column_number'],
+                "day": rows[data['row_number']]["day"], "hour": rows[data['row_number']]["hour"]}
+    # Add in New Slot
+    scheduled, target_matrix, message = addSlot(
+        add_data, target_matrix, rows, rows_invert, columns, room_dictionary, course_dictionary, rooms)
+
+    if scheduled:
+        res = mongo.db.target_matrix.update_one({"timetableObjectID": ObjectId(timetableObjectID)}, {
+            "$set": {"target_matrix": Binary(pickle.dumps(target_matrix))}}, True)
+
+        data = getTableData(target_matrix, color_for_columns, rows, hours_for_columns, columns, course_dictionary, student_group_dictionary, lecturer_dictionary,
+                            room_dictionary, hour_dictionary, day_dictionary, no_of_hours, no_of_days, iteration, generation_with_maximum, maximum_chromosome)
+
+        data["status"] = "done"
+
+        print(data)
+
+        return data
+
+    else:
+        return {"status": "fail", "message": message}

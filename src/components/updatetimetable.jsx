@@ -36,8 +36,7 @@ class UpdateTimetable extends Component {
     axios
       .post("http://127.0.0.1:5000/updatetimetabledetails", this.state)
       .then((res) => {
-        window.location.href =
-          "/timetabledetails/" + res.data.timetableObjectID;
+        window.location.href = "/mainapp/" + res.data.timetableObjectID;
       });
   }
   render() {

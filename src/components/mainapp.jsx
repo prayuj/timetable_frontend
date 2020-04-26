@@ -1,5 +1,5 @@
 import React, { Component } from "react";
-import Input from "./input copy";
+import Input from "./input update";
 import axios from "axios";
 import Jumbotron from "react-bootstrap/Jumbotron";
 import Button from "react-bootstrap/Button";
@@ -88,6 +88,8 @@ class MainApp extends Component {
 
   handleClick(event) {
     this.setState({ current: event.target.id });
+    console.log(event.target.id);
+    if (event.target.id === "main") this.getTimetableDetails();
   }
 
   renderSwitch(param) {
@@ -175,9 +177,10 @@ class MainApp extends Component {
       case "input":
         return (
           <Input
-            data={this.state.data}
+            data={JSON.parse(JSON.stringify(this.state.data))}
             timetableObjectID={this.state.timetableObjectID}
             userid={this.state.userid}
+            backButton={this.handleClick}
           ></Input>
         );
 
@@ -186,12 +189,14 @@ class MainApp extends Component {
           <Generation
             state={this.state}
             sendDataHere={this.handleGeneration}
+            backButton={this.handleClick}
           ></Generation>
         );
       case "timetable":
         return (
           <Timetable
             timetableObjectID={this.state.timetableObjectID}
+            sendDataHere={this.handleClick}
           ></Timetable>
         );
       default:
